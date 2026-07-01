@@ -1,0 +1,39 @@
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment variables (IMPORTANT for API keys)
+.env
+.env.*
+
+# Logs & temp
+*.log
+*.tmp
+
+# Build / packaging
+build/
+dist/
+*.egg-info/
+
+# Jupyter notebooks
+.ipynb_checkpoints/
+
+# IDE / editor
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+
+# RAG / AI project specific
+data/
+vectorstore/
+chroma/
+faiss_index/
+*.pkl
+*.bin
