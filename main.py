@@ -1,12 +1,51 @@
-import os
-from dotenv import load_dotenv
-from langchain_community.document_loader import pypdf
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_groq import ChatGroq
-from langchain_chroma import Chroma
-from langchain.chains import RetrievalQA
+"""
+Travel Policy RAG — interactive entrypoint.
 
-load_dotenv()
+Pipeline (see per-module docstrings):
+    ingest.py     -> pdfplumber parse: text + atomic Markdown tables
+    chunking.py   -> section-aware parent-child chunks
+    retrieval.py  -> hybrid (BM25 + vector) + RRF fusion + cross-encoder rerank
+    rag.py        -> strict, citation-forced ChatGroq generation
+    eval.py       -> 20-question regression suite
+
+Usage:
+    python main.py                 # interactive Q&A loop
+    python main.py "a question"    # one-shot
+"""
+
+from __future__ import annotations
+
+import sys
+
+from rag import RAGPipeline
 
 
+def _print_answer(res: dict) -> None:
+    print("\n" + res["answer"])
+    if not res["refused"]:
+        print(f"\n  sources: {', '.join(res['sources'])}")
+
+
+def main() -> None:
+    print("Building RAG pipeline (first run downloads embedding + reranker models)...")
+    pipe = RAGPipeline()
+
+    if len(sys.argv) > 1:
+        _print_answer(pipe.answer(" ".join(sys.argv[1:])))
+        return
+
+    print("Ready. Ask about the Global Travel Policy. Ctrl-C or blank line to quit.\n")
+    while True:
+        try:
+            q = input("Q> ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            break
+        if not q:
+            break
+        _print_answer(pipe.answer(q))
+        print()
+
+
+if __name__ == "__main__":
+    main()
