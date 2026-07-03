@@ -1,5 +1,5 @@
 """
-Module 3 — Hybrid retrieval + cross-encoder reranking (self-contained).
+Module 3: Hybrid retrieval + cross-encoder reranking (self-contained).
 
 Pipeline
 --------
@@ -14,8 +14,6 @@ ContextualCompressionRetriever because langchain v1 moved those into the
 optional `langchain-classic` package. Doing it directly keeps the dependency
 surface small and the ranking logic explicit. All models run on CPU.
 
-Run directly to sanity-check retrieval:
-    python retrieval.py
 """
 
 from __future__ import annotations

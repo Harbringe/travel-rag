@@ -1,5 +1,5 @@
 """
-Module 2 — Section-aware, parent-child chunking.
+Module 2: Section-aware, parent-child chunking.
 
 Strategy
 --------
@@ -13,8 +13,6 @@ Strategy
 * Every child stores parent_id + section/page metadata so retrieval hits can be
   resolved back to the parent section for generation.
 
-Run directly to print the section tree + sample chunks:
-    python chunking.py
 """
 
 from __future__ import annotations
@@ -58,9 +56,8 @@ class Section:
         return "\n\n".join(p for p in parts if p)
 
 
-# --------------------------------------------------------------------------- #
+
 # Heading detection
-# --------------------------------------------------------------------------- #
 def _is_page_number(text: str) -> bool:
     return bool(re.fullmatch(r"\d{1,3}", text.strip()))
 
@@ -87,9 +84,7 @@ def is_heading(e: Element, base_size: float) -> tuple[bool, str, str]:
     return False, "", ""
 
 
-# --------------------------------------------------------------------------- #
 # Sectioning
-# --------------------------------------------------------------------------- #
 def build_sections(elements: list[Element], base_size: float) -> list[Section]:
     sections: list[Section] = []
     current = Section(id="sec-0", number="", title="Preamble", page_start=1, page_end=1)
@@ -133,15 +128,13 @@ def _page_sections(elements: list[Element]) -> list[Section]:
     return sections
 
 
-# --------------------------------------------------------------------------- #
 # Parent + child document construction
-# --------------------------------------------------------------------------- #
 def build_documents(
     paths: Path | list[Path] | None = None,
 ) -> tuple[dict[str, Document], list[Document]]:
     """Return (parents_by_id, child_documents).
 
-    Generalist corpus: `paths` may be a single PDF, a list of PDFs, or None —
+    `paths` may be a single PDF, a list of PDFs, or None —
     None indexes every *.pdf in docs/. Citations and parent ids carry the
     source filename so multi-document answers stay unambiguous.
     """
@@ -228,9 +221,7 @@ def build_documents(
     return parents, children
 
 
-# --------------------------------------------------------------------------- #
 # Diagnostics
-# --------------------------------------------------------------------------- #
 def _diagnostics() -> None:
     console_safe()
     parents, children = build_documents()

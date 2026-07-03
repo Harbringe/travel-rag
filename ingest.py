@@ -1,18 +1,16 @@
 """
-Module 1 — PDF ingestion with pdfplumber (pure-pip, no system binaries).
+Module 1: PDF ingestion with pdfplumber.
 
-Responsibilities:
+Description
+-----------
   * Extract narrative text per page (with table regions removed so table
     content is not duplicated into the prose).
   * Detect tables and render each as a single Markdown block -> one atomic
     element (never split mid-table downstream).
   * Capture font/size metadata so Module 2 can do heading-aware chunking.
-  * OCR fallback for scanned pages / images of text via RapidOCR (pure-pip,
-    ONNX, CPU). Pages are rasterized with pdfplumber's built-in pypdfium2
-    renderer — still no Poppler/Tesseract.
+  * OCR fallback for scanned pages / images of text via RapidOCR. Pages
+    are rasterized with pdfplumber's built-in pypdfium2 renderer.
 
-Run directly to print diagnostics about the target PDF:
-    python ingest.py
 """
 
 from __future__ import annotations
@@ -27,11 +25,11 @@ import pdfplumber
 
 DOCS_DIR = Path(__file__).parent / "docs"
 
-# Generalist mode: the pipeline indexes EVERY *.pdf in docs/ (see
+# The pipeline indexes EVERY *.pdf in docs/ (see
 # chunking.build_documents). PDF_PATH remains as the single-doc default for
 # standalone diagnostics (`python ingest.py [path]`).
-# PDF_PATH = DOCS_DIR / "Global Travel Policy - Ver 1.4 1.pdf"  # travel-specific
-PDF_PATH = DOCS_DIR / "tada.pdf"
+PDF_PATH = DOCS_DIR / "Global Travel Policy - Ver 1.4 1.pdf"  # LTM Travel Policy
+# PDF_PATH = DOCS_DIR / "tada.pdf"    # Open Travel Policy doc
 
 
 def list_pdfs(directory: Path = DOCS_DIR) -> list[Path]:
@@ -53,10 +51,9 @@ TableStrategy = Literal["lines", "text"]
 
 
 def normalize(s: str) -> str:
-    """Fix common PDF glyph artifacts (symbol-font PUA chars, replacement char).
+    """Fix common PDF glyph artifacts (symbol-font chars, replacement char).
 
-    PDFs frequently encode bullets/dashes via symbol fonts that decode into the
-    Unicode Private Use Area (U+E000-U+F8FF) or as U+FFFD. Map those to a dash
+    PDFs frequently encode bullets/dashes via symbol fonts map those to a hyphen
     so tables/prose stay readable and the console can print them.
     """
     out = []
@@ -84,10 +81,9 @@ class Element:
     meta: dict = field(default_factory=dict)
 
 
-# --------------------------------------------------------------------------- #
 # Table extraction + markdown rendering
-# --------------------------------------------------------------------------- #
 def _clean_cell(cell: str | None) -> str:
+    """Cell cleaning and normalization."""
     if cell is None:
         return ""
     return normalize(" ".join(str(cell).split()))  # collapse whitespace + fix glyphs
@@ -122,9 +118,7 @@ def _table_settings(strategy: TableStrategy) -> dict:
     return {"vertical_strategy": "lines", "horizontal_strategy": "lines"}
 
 
-# --------------------------------------------------------------------------- #
-# Font / heading helpers
-# --------------------------------------------------------------------------- #
+# Font / Heading helpers
 def _round(x: float) -> float:
     return round(x * 2) / 2  # nearest 0.5pt
 
@@ -138,14 +132,12 @@ def body_font_size(pdf: pdfplumber.PDF) -> float:
     return sizes.most_common(1)[0][0] if sizes else 0.0
 
 
-# --------------------------------------------------------------------------- #
 # OCR fallback (scanned pages / embedded images of text)
-# --------------------------------------------------------------------------- #
 OCR_RESOLUTION = 200        # dpi for rasterizing pages (PDF space is 72/in)
 OCR_MAX_PIXELS = 3000       # cap longest rendered side (memory/speed guard)
 OCR_MIN_SCORE = 0.5         # drop low-confidence recognitions
 OCR_TRIGGER_CHARS = 50      # page with fewer native chars => treat as scanned
-OCR_MIN_IMAGE_AREA = 4000   # pt^2 — skip small decorative images (logos, icons)
+OCR_MIN_IMAGE_AREA = 4000   # skip small decorative images (logos, icons)
 OCR_MIN_REGION_TEXT = 20    # chars — drop image regions that OCR to logo/noise
 
 _ocr_engine = None
@@ -153,8 +145,7 @@ _ocr_unavailable = False
 
 
 def _get_ocr():
-    """Lazy-load RapidOCR (bundled ONNX models, no system deps). None if absent —
-    ingestion then degrades to native text extraction only."""
+    """Lazy-load RapidOCR. None if absent, ingestion then degrades to native text extraction only."""
     global _ocr_engine, _ocr_unavailable
     if _ocr_engine is None and not _ocr_unavailable:
         try:
@@ -274,9 +265,7 @@ def _ocr_image_regions(page, pageno: int, table_bboxes: list) -> list[Element]:
     return out
 
 
-# --------------------------------------------------------------------------- #
 # Core parse
-# --------------------------------------------------------------------------- #
 def parse_pdf(path: Path = PDF_PATH, table_strategy: TableStrategy = "lines") -> list[Element]:
     """Return elements in reading order: narrative text blocks + atomic tables."""
     elements: list[Element] = []
@@ -352,12 +341,10 @@ def parse_pdf(path: Path = PDF_PATH, table_strategy: TableStrategy = "lines") ->
 
     # Reading order: by page, then vertical position.
     elements.sort(key=lambda e: (e.page, e.top))
-    return elements, base_size  # type: ignore[return-value]
+    return elements, base_size
 
 
-# --------------------------------------------------------------------------- #
 # Diagnostics
-# --------------------------------------------------------------------------- #
 def _diagnostics(strategy: TableStrategy = "lines", path: Path = PDF_PATH) -> None:
     console_safe()
     print(f"PDF: {path.name}")
@@ -404,6 +391,8 @@ def _diagnostics(strategy: TableStrategy = "lines", path: Path = PDF_PATH) -> No
     else:
         print("\n(No tables found with this strategy — try strategy='text' for borderless tables.)")
 
+
+    print(parse_pdf(path))
 
 if __name__ == "__main__":
     import sys
