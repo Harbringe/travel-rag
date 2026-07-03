@@ -73,7 +73,6 @@ class HybridRetriever:
         self.reranker = HuggingFaceCrossEncoder(model_name=RERANK_MODEL)
         self.rerank_top_n = rerank_top_n
 
-    # ------------------------------------------------------------------ #
     def _vector_ids(self, query: str) -> list[int]:
         docs = self.vectorstore.similarity_search(query, k=CANDIDATES)
         return [d.metadata["cid"] for d in docs]
@@ -92,7 +91,7 @@ class HybridRetriever:
                 score[cid] = score.get(cid, 0.0) + 1.0 / (RRF_K + rank)
         return sorted(score, key=lambda c: score[c], reverse=True)
 
-    # ------------------------------------------------------------------ #
+    
     def retrieve(self, query: str, k_parents: int = DEFAULT_PARENTS) -> dict:
         fused = self._rrf([self._vector_ids(query), self._bm25_ids(query)])[:RRF_POOL]
         if not fused:
@@ -130,7 +129,7 @@ if __name__ == "__main__":
 
     console_safe()
     r = HybridRetriever()
-    # ---- travel-specific demo queries (policy-only deployment) -------------
+    # ---- travel-specific demo queries  -------------
     # queries = [
     #     "What is the per diem for the UK?",                               # table
     #     "Who can approve exceptions to the policy?",                      # text

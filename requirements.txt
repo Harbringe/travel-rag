@@ -1,4 +1,4 @@
-# Core RAG stack — all pure-pip, no system binaries (Windows/CPU friendly)
+# Core RAG stack
 python-dotenv==1.2.2
 
 # LangChain (v1 line)
@@ -21,11 +21,10 @@ transformers==5.12.1
 # Lexical retrieval
 rank-bm25==0.2.2
 
-# PDF parsing + table extraction (no Poppler/Tesseract needed)
+# PDF parsing + table extraction 
 pdfplumber==0.11.10
 
-# OCR fallback for scanned pages / images of text (pure-pip ONNX, bundled
-# models, CPU — page rendering via pdfplumber's pypdfium2, still no binaries)
+# OCR fallback for scanned pages / images of text 
 rapidocr-onnxruntime==1.4.4
 
 # Web UI

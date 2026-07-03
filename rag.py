@@ -1,13 +1,10 @@
 """
-Module 4 — Strict, citation-forced RAG generation.
+Module 4: Strict, citation-forced RAG generation.
 
 Builds context from the retrieved PARENT sections (which include their atomic
 tables) and asks ChatGroq to answer ONLY from that context, citing section +
 page, and to REFUSE when the answer isn't present.
 
-Usage:
-    python rag.py                       # runs a few demo questions
-    python rag.py "your question here"  # one-shot
 """
 
 from __future__ import annotations
@@ -24,7 +21,7 @@ load_dotenv()
 
 GROQ_MODEL = "llama-3.3-70b-versatile"
 
-# ---- travel-specific originals (kept for the policy-only deployment) -------
+# ---- travel-specific originals -------
 # REFUSAL = "I could not find this information in the Travel Policy."
 #
 # SYSTEM_PROMPT = """You are a precise assistant that answers questions about the company's Global Travel Policy.
@@ -118,7 +115,7 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         _demo(pipe, " ".join(sys.argv[1:]))
     else:
-        # ---- travel-specific demo questions (policy-only deployment) --------
+        # ---- travel-specific demo questions --------
         # for q in [
         #     "Who can approve exceptions to the travel policy?",
         #     "What is the per diem for the UK, and in what currency?",

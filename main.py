@@ -9,9 +9,6 @@ Pipeline (see per-module docstrings):
     rag.py        -> strict, citation-forced ChatGroq generation
     eval.py       -> 20-question regression suite
 
-Usage:
-    python main.py                 # interactive Q&A loop
-    python main.py "a question"    # one-shot
 """
 
 from __future__ import annotations

@@ -1,5 +1,5 @@
 """
-Module 5 — Evaluation harness.
+Module 5: Evaluation harness.
 
 20 questions across four categories:
   * text      — plain single-section lookup
@@ -12,8 +12,6 @@ Scoring per question:
                 OR the model correctly refused (for 'absent' Qs)
   * cited     — answer carries a [Source: ...] / §/ p.N citation (answerable Qs)
 
-Run:
-    python eval.py
 """
 
 from __future__ import annotations
