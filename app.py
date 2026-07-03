@@ -1,5 +1,6 @@
 """
-Gradio frontend for the Travel Policy RAG.
+Gradio frontend for the Document RAG (originally Travel Policy RAG;
+generalized to answer over every PDF in docs/).
 
     python app.py         # then open http://127.0.0.1:7860
 
@@ -41,12 +42,14 @@ def _format_context(hits) -> str:
 def answer(question: str):
     question = (question or "").strip()
     if not question:
-        return "Ask a question about the Global Travel Policy.", "", ""
+        # return "Ask a question about the Global Travel Policy.", "", ""  # travel-specific
+        return "Ask a question about the indexed documents.", "", ""
 
     res = _get_pipe().answer(question)
 
     if res["refused"]:
-        ans_md = f"> ⚠️ **Not found in policy**\n\n{res['answer']}"
+        # ans_md = f"> ⚠️ **Not found in policy**\n\n{res['answer']}"  # travel-specific
+        ans_md = f"> ⚠️ **Not found in the documents**\n\n{res['answer']}"
         sources_md = "_(refused — no citation)_"
     else:
         ans_md = res["answer"]
@@ -55,24 +58,42 @@ def answer(question: str):
     return ans_md, sources_md, _format_context(res["hits"])
 
 
+# ---- travel-specific UI (policy-only deployment) ----------------------------
+# EXAMPLES = [
+#     "Who can approve exceptions to the travel policy?",
+#     "What is the per diem for the UK and in what currency?",
+#     "How far in advance must international tickets be booked?",
+#     "What travel class are E3-grade employees entitled to internationally?",
+#     "How many paid vacation days do employees get?",  # trick: not in doc
+# ]
+#
+# with gr.Blocks(title="Travel Policy RAG") as demo:
+#     gr.Markdown(
+#         "# ✈️ Travel Policy Assistant\n"
+#         "Ask questions about the **Global Travel Policy**. Answers cite the "
+#         "section & page, and the assistant refuses when the answer isn't in the document."
+#     )
+# ------------------------------------------------------------------------------
+
 EXAMPLES = [
-    "Who can approve exceptions to the travel policy?",
-    "What is the per diem for the UK and in what currency?",
-    "How far in advance must international tickets be booked?",
-    "What travel class are E3-grade employees entitled to internationally?",
-    "How many paid vacation days do employees get?",  # trick: not in doc
+    "What are these documents about?",
+    "Summarize the key rules or entitlements described in the documents.",
+    "What allowances or rates are specified, and in what currency?",
+    "How many paid vacation days do employees get?",  # likely absent -> should refuse
 ]
 
-with gr.Blocks(title="Travel Policy RAG") as demo:
+with gr.Blocks(title="Document RAG") as demo:
     gr.Markdown(
-        "# ✈️ Travel Policy Assistant\n"
-        "Ask questions about the **Global Travel Policy**. Answers cite the "
-        "section & page, and the assistant refuses when the answer isn't in the document."
+        "# 📄 Document Assistant\n"
+        "Ask questions about the **indexed PDF documents** (everything in `docs/`). "
+        "Answers cite document, section & page, and the assistant refuses when "
+        "the answer isn't in the documents."
     )
     with gr.Row():
         question = gr.Textbox(
             label="Your question",
-            placeholder="e.g. What is the per diem for the UK?",
+            # placeholder="e.g. What is the per diem for the UK?",  # travel-specific
+            placeholder="e.g. What allowance rates does the document specify?",
             scale=5,
             autofocus=True,
         )

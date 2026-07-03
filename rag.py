@@ -23,17 +23,38 @@ from retrieval import HybridRetriever
 load_dotenv()
 
 GROQ_MODEL = "llama-3.3-70b-versatile"
-REFUSAL = "I could not find this information in the Travel Policy."
 
-SYSTEM_PROMPT = """You are a precise assistant that answers questions about the company's Global Travel Policy.
+# ---- travel-specific originals (kept for the policy-only deployment) -------
+# REFUSAL = "I could not find this information in the Travel Policy."
+#
+# SYSTEM_PROMPT = """You are a precise assistant that answers questions about the company's Global Travel Policy.
+#
+# Follow these rules strictly:
+# 1. Use ONLY the information in the CONTEXT below. Do not use outside knowledge and do not infer or assume anything that is not explicitly written.
+# 2. Every factual claim MUST cite its source using ONLY the exact "[Source: ...]" labels shown in the context. Never cite a section or page that does not appear verbatim in a context header. If you cannot attribute a claim to a provided source, do not make the claim.
+# 3. When the answer comes from a table, quote the exact figures/currencies from that table.
+# 4. If the CONTEXT does not fully and explicitly contain the answer, reply with EXACTLY this sentence and nothing else:
+# {refusal}
+# 5. Do not apologize or add commentary. Be concise and factual."""
+# -----------------------------------------------------------------------------
 
-Follow these rules strictly:
-1. Use ONLY the information in the CONTEXT below. Do not use outside knowledge and do not infer or assume anything that is not explicitly written.
-2. Every factual claim MUST cite its source using ONLY the exact "[Source: ...]" labels shown in the context. Never cite a section or page that does not appear verbatim in a context header. If you cannot attribute a claim to a provided source, do not make the claim.
-3. When the answer comes from a table, quote the exact figures/currencies from that table.
-4. If the CONTEXT does not fully and explicitly contain the answer, reply with EXACTLY this sentence and nothing else:
+REFUSAL = "I could not find this information in the provided documents."
+
+# Generalist prompt. Two failure modes are equally unacceptable:
+#   * hallucination — claiming anything the context does not support (rules 1-3);
+#   * over-refusal  — refusing when the context DOES contain the substance of
+#     the answer but words it differently (rules 4-5).
+SYSTEM_PROMPT = """You are a precise assistant that answers questions strictly from excerpts of the provided documents.
+
+Follow these rules:
+1. Use ONLY the information in the CONTEXT below. Do not use outside knowledge and do not invent, infer, or embellish details that are not written there.
+2. Every factual claim MUST cite its source using ONLY the exact "[Source: ...]" labels shown in the context. Never cite a document, section, or page that does not appear verbatim in a context header. If you cannot attribute a claim to a provided source, do not make the claim.
+3. When the answer comes from a table, quote the exact figures/units/currencies from that table. Note that some documents are scanned; their text may contain minor OCR artifacts (odd spacing or characters) — read through such noise, but never guess at values you cannot actually read.
+4. The context may word things differently from the question. Treat synonyms, abbreviations, paraphrases, and equivalent phrasings as matches: if the context contains the substance of the answer, ANSWER IT. Do not refuse merely because the wording differs.
+5. If the context answers only part of the question, give the supported part (with citations) and say plainly which part the documents do not cover.
+6. ONLY if the context contains nothing that addresses the question, reply with EXACTLY this sentence and nothing else:
 {refusal}
-5. Do not apologize or add commentary. Be concise and factual."""
+7. Do not apologize or pad. Be concise and factual."""
 
 USER_PROMPT = """CONTEXT:
 {context}
@@ -90,14 +111,24 @@ def _demo(pipe: RAGPipeline, question: str) -> None:
 
 
 if __name__ == "__main__":
+    from ingest import console_safe
+
+    console_safe()
     pipe = RAGPipeline()
     if len(sys.argv) > 1:
         _demo(pipe, " ".join(sys.argv[1:]))
     else:
+        # ---- travel-specific demo questions (policy-only deployment) --------
+        # for q in [
+        #     "Who can approve exceptions to the travel policy?",
+        #     "What is the per diem for the UK, and in what currency?",
+        #     "How far in advance must international tickets be booked?",
+        #     "What is the reimbursement rate for using a personal helicopter?",
+        # ]:
+        #     _demo(pipe, q)
+        # ----------------------------------------------------------------------
         for q in [
-            "Who can approve exceptions to the travel policy?",
-            "What is the per diem for the UK, and in what currency?",
-            "How far in advance must international tickets be booked?",
-            "What is the reimbursement rate for using a personal helicopter?",
+            "What are these documents about?",
+            "What is the reimbursement rate for using a personal helicopter?",  # absent -> must refuse
         ]:
             _demo(pipe, q)

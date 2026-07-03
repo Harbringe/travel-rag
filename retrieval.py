@@ -126,13 +126,25 @@ class HybridRetriever:
 
 
 if __name__ == "__main__":
+    import sys
+
+    from ingest import console_safe
+
+    console_safe()
     r = HybridRetriever()
-    for q in [
-        "What is the per diem for the UK?",                               # table
-        "Who can approve exceptions to the policy?",                      # text
-        "How many days in advance should international tickets be booked?",  # text
-        "What is the reimbursement for using a personal helicopter?",     # not in doc
-    ]:
+    # ---- travel-specific demo queries (policy-only deployment) -------------
+    # queries = [
+    #     "What is the per diem for the UK?",                               # table
+    #     "Who can approve exceptions to the policy?",                      # text
+    #     "How many days in advance should international tickets be booked?",  # text
+    #     "What is the reimbursement for using a personal helicopter?",     # not in doc
+    # ]
+    # --------------------------------------------------------------------------
+    queries = [" ".join(sys.argv[1:])] if len(sys.argv) > 1 else [
+        "What are these documents about?",
+        "What is the reimbursement for using a personal helicopter?",  # likely absent
+    ]
+    for q in queries:
         print("\n" + "=" * 72 + f"\nQ: {q}")
         out = r.retrieve(q)
         for c in out["children"][:4]:

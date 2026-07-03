@@ -24,5 +24,9 @@ rank-bm25==0.2.2
 # PDF parsing + table extraction (no Poppler/Tesseract needed)
 pdfplumber==0.11.10
 
+# OCR fallback for scanned pages / images of text (pure-pip ONNX, bundled
+# models, CPU — page rendering via pdfplumber's pypdfium2, still no binaries)
+rapidocr-onnxruntime==1.4.4
+
 # Web UI
 gradio==6.19.0

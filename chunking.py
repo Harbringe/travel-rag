@@ -22,10 +22,12 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
+from pathlib import Path
+
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-from ingest import PDF_PATH, Element, parse_pdf
+from ingest import PDF_PATH, Element, console_safe, list_pdfs, parse_pdf
 
 # "1. Introduction", "7.1 Travel Class...", "7.10", "8." etc.
 NUMBERED_RE = re.compile(r"^(\d+(?:\.\d+)*)\.?\s*(.*)$")
@@ -114,15 +116,41 @@ def build_sections(elements: list[Element], base_size: float) -> list[Section]:
     return sections
 
 
+def _page_sections(elements: list[Element]) -> list[Section]:
+    """Fallback sectioning when heading detection finds nothing (common for
+    scanned docs: OCR gives no bold flags and noisy sizes). Group by PAGE so
+    citations still point somewhere precise ('Page 3 (p.3)') instead of one
+    doc-wide blob."""
+    by_page: dict[int, list[Element]] = {}
+    for e in elements:
+        by_page.setdefault(e.page, []).append(e)
+    sections = []
+    for i, page in enumerate(sorted(by_page), start=1):
+        sections.append(
+            Section(id=f"sec-{i}", number="", title=f"Page {page}",
+                    page_start=page, page_end=page, elements=by_page[page])
+        )
+    return sections
+
+
 # --------------------------------------------------------------------------- #
 # Parent + child document construction
 # --------------------------------------------------------------------------- #
 def build_documents(
-    path=PDF_PATH,
+    paths: Path | list[Path] | None = None,
 ) -> tuple[dict[str, Document], list[Document]]:
-    """Return (parents_by_id, child_documents)."""
-    elements, base_size = parse_pdf(path)
-    sections = build_sections(elements, base_size)
+    """Return (parents_by_id, child_documents).
+
+    Generalist corpus: `paths` may be a single PDF, a list of PDFs, or None —
+    None indexes every *.pdf in docs/. Citations and parent ids carry the
+    source filename so multi-document answers stay unambiguous.
+    """
+    if paths is None:
+        paths = list_pdfs()
+    elif isinstance(paths, Path):
+        paths = [paths]
+    if not paths:
+        raise FileNotFoundError("No PDFs found to index (docs/*.pdf is empty).")
 
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=CHILD_SIZE,
@@ -132,57 +160,70 @@ def build_documents(
 
     parents: dict[str, Document] = {}
     children: list[Document] = []
-    source = path.name
 
-    for sec in sections:
-        parents[sec.id] = Document(
-            page_content=sec.full_text,
-            metadata={
-                "parent_id": sec.id,
+    for di, path in enumerate(paths):
+        elements, base_size = parse_pdf(path)
+        sections = build_sections(elements, base_size)
+        # No headings found and the doc spans multiple pages -> per-page sections.
+        if len(sections) <= 1 and len({e.page for e in elements}) > 1:
+            sections = _page_sections(elements)
+        source = path.name
+        doc_label = path.stem
+
+        for sec in sections:
+            # Unique across documents + human-readable provenance in citations.
+            pid = f"d{di}-{sec.id}" if len(paths) > 1 else sec.id
+            citation = f"{doc_label} — {sec.citation}"
+
+            parents[pid] = Document(
+                page_content=sec.full_text,
+                metadata={
+                    "parent_id": pid,
+                    "section": sec.number,
+                    "title": sec.title,
+                    "citation": citation,
+                    "page": sec.page_start,
+                    "source": source,
+                },
+            )
+
+            base_meta = {
+                "parent_id": pid,
                 "section": sec.number,
                 "title": sec.title,
-                "citation": sec.citation,
-                "page": sec.page_start,
-            },
-        )
+                "citation": citation,
+                "source": source,
+            }
 
-        base_meta = {
-            "parent_id": sec.id,
-            "section": sec.number,
-            "title": sec.title,
-            "citation": sec.citation,
-            "source": source,
-        }
+            # Tables -> atomic children. Prose -> split children.
+            prose_buf: list[Element] = []
 
-        # Tables -> atomic children. Prose -> split children.
-        prose_buf: list[Element] = []
+            def flush_prose(buf=prose_buf, base_meta=base_meta):
+                if not buf:
+                    return
+                text = "\n".join(el.text for el in buf)
+                page = buf[0].page
+                for piece in splitter.split_text(text):
+                    if piece.strip():
+                        children.append(
+                            Document(page_content=piece, metadata={**base_meta, "kind": "text", "page": page})
+                        )
+                buf.clear()
 
-        def flush_prose(buf=prose_buf):
-            if not buf:
-                return
-            text = "\n".join(el.text for el in buf)
-            page = buf[0].page
-            for piece in splitter.split_text(text):
-                if piece.strip():
+            for el in sec.elements:
+                if el.kind == "table":
+                    flush_prose()
+                    # Prefix the table with its section so a lone table chunk is self-describing.
+                    header = f"[Table from {citation}]\n"
                     children.append(
-                        Document(page_content=piece, metadata={**base_meta, "kind": "text", "page": page})
+                        Document(
+                            page_content=header + el.text,
+                            metadata={**base_meta, "kind": "table", "page": el.page},
+                        )
                     )
-            buf.clear()
-
-        for el in sec.elements:
-            if el.kind == "table":
-                flush_prose()
-                # Prefix the table with its section so a lone table chunk is self-describing.
-                header = f"[Table from {sec.citation}]\n"
-                children.append(
-                    Document(
-                        page_content=header + el.text,
-                        metadata={**base_meta, "kind": "table", "page": el.page},
-                    )
-                )
-            else:
-                prose_buf.append(el)
-        flush_prose()
+                else:
+                    prose_buf.append(el)
+            flush_prose()
 
     return parents, children
 
@@ -191,6 +232,7 @@ def build_documents(
 # Diagnostics
 # --------------------------------------------------------------------------- #
 def _diagnostics() -> None:
+    console_safe()
     parents, children = build_documents()
     print(f"Sections (parents): {len(parents)}")
     print(f"Child chunks:       {len(children)}")

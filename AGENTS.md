@@ -6,7 +6,8 @@ Context for AI agents (and humans) working on this repo. Read this before editin
 
 ## 1. What this is
 
-A production-quality **RAG system over a single travel-policy PDF**, built for an
+A production-quality **RAG system over the PDFs in `docs/`** (originally a single
+travel-policy PDF; generalized 2026-07-02 — see §9), built for an
 internal GenAI take-home interview. The goal is not just "answers" but a
 *defensible* pipeline: table-aware ingestion, section-aware chunking, hybrid
 retrieval, reranking, strict grounded generation, and an eval harness.
@@ -39,7 +40,11 @@ These shaped every design decision. Respect them.
   (pure-pip: `pdfminer.six` + `Pillow`) handles this digital-native PDF's tables
   better here, with zero binary deps. **This is the #1 thing to defend in the
   interview** — see `docs`-free reasoning above.
-- **No image handling** — the PDF has no images. Requirement dropped by design.
+- **OCR without Tesseract:** scanned pages / images of text are handled by
+  **RapidOCR** (`rapidocr-onnxruntime` — pure-pip, ONNX CPU runtime, models
+  bundled in the wheel, fully offline). Pages are rasterized with pdfplumber's
+  built-in **pypdfium2** renderer (already a pdfplumber dep), so no Poppler
+  either. The constraint holds: everything ships inside pip wheels.
 - **detectron2 is intentionally absent** (no Windows wheels, needs C++ build).
 
 ---
@@ -79,6 +84,10 @@ PDF
                       • narrative text (table regions removed to avoid dup)
                       • tables -> Markdown, ONE atomic Element each
                       • normalize() fixes symbol-font/PUA glyph artifacts
+                      • OCR fallback (RapidOCR): full-page OCR when a page has
+                        <50 native chars + no tables; region OCR for sizeable
+                        embedded images on native pages. OCR lines carry
+                        meta={"ocr": True} and a box-height font-size proxy.
  └─ chunking  (M2)   heading detection (numbered-section regex + font/bold)
                       -> parent sections + small child chunks (parent_id link)
                       -> tables stay atomic children
@@ -95,7 +104,8 @@ PDF
 **Requirement → status map** (original 8-point brief):
 1. hi_res loader → **replaced** with pdfplumber (constraint-driven, see §2)
 2. Tables → Markdown, atomic chunk → **done** (`ingest.py`)
-3. Images → **dropped** (none in doc)
+3. Images / scanned pages → **done** via RapidOCR fallback (`ingest.py`; was
+   "dropped" while the only doc was digital-native)
 4. Section-aware + parent-child chunking → **done** (`chunking.py`)
 5. Hybrid BM25+vector → **done** (`retrieval.py`, RRF)
 6. Reranker → **done** (`retrieval.py`, ms-marco cross-encoder)
@@ -152,6 +162,14 @@ Element(kind="text"|"table", page:int, text:str, top:float, size:float, bold:boo
   M2's detector must exclude bare-numeric / very-short lines.
 - **Console encoding**: Windows cp1252 stdout will crash on raw PUA chars. Always
   `normalize()` before printing, or print repr/codepoints.
+- **OCR limitations (accepted):** on scanned pages there are no vector lines, so
+  `find_tables` can't fire — tables in scans come through as OCR prose, not
+  Markdown. OCR box heights are a noisy font-size proxy (±15%), so heading
+  detection on scans is best-effort (some numbered list items may become
+  sections); retrieval over children still works. RapidOCR occasionally drops
+  inter-word spaces ("tosupport") — hurts BM25 slightly, embeddings cope.
+  Test a scanned doc by rendering pages to images and re-saving via Pillow,
+  then `python ingest.py <path>` (diagnostics take an optional PDF path).
 
 ---
 
@@ -178,6 +196,12 @@ Element(kind="text"|"table", page:int, text:str, top:float, size:float, bold:boo
   now installed — `python app.py` builds and serves the UI (verified via import).
 - ✅ All five modules present and matching the README spec (see §5).
 - ✅ **M1 ingestion** verified: 22 pages, 12 ruled tables → Markdown, clean headings.
+- ✅ **M1 OCR fallback** (2026-07-02): `rapidocr-onnxruntime==1.4.4` added. Full-page
+  OCR for scanned pages, region OCR for embedded images (now captures the p1
+  cover title that native extraction missed). Verified: original PDF regression-
+  clean (31 sections / 109 children unchanged); image-only test PDF (3 pages,
+  0 native chars) → 85 OCR lines, chunks + citations produced. See §7 for
+  accepted OCR limitations.
 - ✅ **M2 chunking** verified: 31 sections, 109 children (97 text + 12 atomic tables).
 - ✅ **M3 retrieval** verified: RRF + rerank works; out-of-doc queries score **negative**
   (useful absent-signal); UK per-diem resolves via parent §7.7.
@@ -194,3 +218,21 @@ Element(kind="text"|"table", page:int, text:str, top:float, size:float, bold:boo
 - Reminder: build/verify order is checkpoint-per-module: run → verify → next.
 - ⚠ **Parallel-agent note:** source files (chunking/retrieval/rag/eval/app) appeared
   mid-session from concurrent work. Coordinate before editing to avoid clobbering.
+- 🔄 **Generalist pivot (2026-07-02):** the RAG now indexes **every PDF in `docs/`**
+  (`chunking.build_documents(paths=None)` → `ingest.list_pdfs()`); citations and
+  parent ids carry the source filename ("tada — Page 4 (p.4)"). All travel-specific
+  prompts/questions/UI text are **commented out, not deleted** (rag.py, eval.py,
+  app.py, main.py, retrieval.py) — restore by uncommenting. New generalist prompt
+  in rag.py explicitly balances anti-hallucination (cite-or-omit) against
+  over-refusal (paraphrase counts as a match; partial answers allowed with a
+  stated gap). Docs with no detectable headings (scans) fall back to per-page
+  sections so citations stay precise. `ingest.console_safe()` makes cp1252
+  consoles survive stray OCR chars (tada.pdf OCR emits occasional CJK noise).
+  Verified live: tada.pdf (fully scanned, 8pp NHAI TA order) answers with correct
+  citation + honest partial-coverage note; helicopter question refuses; UK per
+  diem still answers GBP 160/45 from §7.7. eval.py QUESTIONS is now an empty
+  generic list (travel suite kept commented as the format template).
+- ⚠ **tada.pdf OCR caveat:** bilingual Hindi/English scan — Devanagari lines come
+  out garbled (RapidOCR default models are EN/CH); the parallel English text is
+  what's indexed and it extracts fine. Fine for EN Q&A; flag if Hindi answers are
+  ever required.

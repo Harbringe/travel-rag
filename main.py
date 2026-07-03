@@ -1,5 +1,6 @@
 """
-Travel Policy RAG — interactive entrypoint.
+Document RAG — interactive entrypoint. (Originally the Travel Policy RAG;
+generalized to answer over every PDF in docs/.)
 
 Pipeline (see per-module docstrings):
     ingest.py     -> pdfplumber parse: text + atomic Markdown tables
@@ -27,6 +28,9 @@ def _print_answer(res: dict) -> None:
 
 
 def main() -> None:
+    from ingest import console_safe
+
+    console_safe()
     print("Building RAG pipeline (first run downloads embedding + reranker models)...")
     pipe = RAGPipeline()
 
@@ -34,7 +38,8 @@ def main() -> None:
         _print_answer(pipe.answer(" ".join(sys.argv[1:])))
         return
 
-    print("Ready. Ask about the Global Travel Policy. Ctrl-C or blank line to quit.\n")
+    # print("Ready. Ask about the Global Travel Policy. Ctrl-C or blank line to quit.\n")  # travel-specific
+    print("Ready. Ask about the indexed documents (docs/*.pdf). Ctrl-C or blank line to quit.\n")
     while True:
         try:
             q = input("Q> ").strip()
